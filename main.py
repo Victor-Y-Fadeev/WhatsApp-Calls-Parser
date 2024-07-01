@@ -49,7 +49,7 @@ def template_matching(image, template_path):
 if __name__ == '__main__':
     screenshots = glob.glob('Screenshot_*.jpg')
     screenshots = [screenshots[0]]
-    print(pytesseract.get_languages(config=''))
+
     for screenshot in screenshots:
         image = preprocess_image(screenshot)
         width, height = image.shape[::-1]
@@ -57,8 +57,13 @@ if __name__ == '__main__':
         audio_calls, w, h = template_matching(image, 'resources/audio.bmp')
         video_calls, _, _ = template_matching(image, 'resources/video.bmp')
 
+        # log = []
+        file = open('log.txt', 'w', encoding='utf-8')
         for x, y in audio_calls:
-            image_cut = image[y:y + h, 0:width]
+            cut = image[y:y + h, x + w:width]
+            text = pytesseract.image_to_string(cut, lang='eng+rus', config='--psm 6')
+            # log.append(text)
+            file.write(text)
 
-        print(pytesseract.image_to_string(image_cut, lang='eng+rus', config='--psm 6'))
-        cv2.imwrite('res.png', image_cut)
+        file.close()
+        cv2.imwrite('res.png', cut)
