@@ -166,3 +166,6 @@ cython_debug/
 *.xml
 *.jpg
 *.apk
+
+# Include
+!requirements.txt
