@@ -2,6 +2,7 @@ import cv2
 import pytesseract
 import numpy as np
 import glob
+import os
 
 # Ensure pytesseract can find the Tesseract-OCR executable
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
@@ -50,6 +51,8 @@ if __name__ == '__main__':
     screenshots = glob.glob('Screenshot_*.jpg')
     screenshots = [screenshots[0]]
 
+    # cv2.imwrite('threshold.png', preprocess_image(screenshots[0]))
+    # exit()
     for screenshot in screenshots:
         image = preprocess_image(screenshot)
         width, height = image.shape[::-1]
@@ -60,10 +63,33 @@ if __name__ == '__main__':
         # log = []
         file = open('log.txt', 'w', encoding='utf-8')
         for x, y in audio_calls:
-            cut = image[y:y + h, x + w:width]
-            text = pytesseract.image_to_string(cut, lang='eng+rus', config='--psm 6')
+            cut = image[y + int(h / 2):y + h, x + w:width]
+
+
+            # text = pytesseract.image_to_string(cut, config=f'"{path}"')
+            # patterns = os.path.abspath('my.patterns')
+            config = os.path.abspath('resources/rus.user-config')
+            # patterns = os.path.abspath('resources/rus.user-patterns')
+            # words = os.path.abspath('resources/rus.user-words')
+            # text = pytesseract.image_to_string(cut, lang='rus', config=f'"{config}" --user-words "{words}" --user-patterns "{patterns}"')
+            text = pytesseract.image_to_string(cut, lang='rus', config=f'"{config}"')
             # log.append(text)
-            file.write(text)
+            # print(text)
+            file.write(f'"{text}"')
+            if '251ро' in text:
+                cv2.imwrite('res.png', cut)
+
 
         file.close()
-        cv2.imwrite('res.png', cut)
+
+    # image = preprocess_image('Arial.png')
+    # config = os.path.abspath('resources/russian.config')
+    # text = pytesseract.image_to_string(image, lang='eng', config=f'"{config}"')
+    # print(f'"{text}"')
+
+
+
+        # path = os.path.abspath('resources/russian.config')
+        # print(path)
+
+        # patterns = os.path.abspath('resources/call.patterns')
