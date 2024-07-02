@@ -74,5 +74,4 @@ if __name__ == '__main__':
             text = pytesseract.image_to_string(cut, lang=lang, config=f'"{config}"')
             file.write(f'"{text}"')
 
-
         file.close()
