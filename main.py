@@ -135,8 +135,8 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
     return call_list
 
 
-def calls_to_csv(calls: list[Call]):
-    with open('calls.csv', 'w', newline='') as csvfile:
+def calls_to_csv(path: str, calls: list[Call]):
+    with open(path, 'w', newline='') as csvfile:
         header = map(lambda field: field.name, fields(Call))
         writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=header)
 
@@ -148,4 +148,4 @@ def calls_to_csv(calls: list[Call]):
 if __name__ == '__main__':
     lang = 'rus'
     screenshots = glob.glob('Screenshot_*.jpg')
-    calls_to_csv(screenshot_to_calls(screenshots[0], lang))
+    calls_to_csv('calls.csv', screenshot_to_calls(screenshots[0], lang))
