@@ -1,39 +1,17 @@
+import os
+import re
+import glob
+from enum import Enum
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta
+
 import cv2
 import pytesseract
 import numpy as np
-import glob
-import os
-import re
-from datetime import datetime, time, timedelta
-from enum import Enum
+
 
 # Ensure pytesseract can find the Tesseract-OCR executable
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
-
-
-def extract_text(image):
-    text = pytesseract.image_to_string(image)
-    return text
-
-def main(screenshot_path, incoming_icon_path, outgoing_icon_path):
-    processed_image = preprocess_image(screenshot_path)
-
-    incoming_calls = template_matching(processed_image, incoming_icon_path)
-    outgoing_calls = template_matching(processed_image, outgoing_icon_path)
-
-    print(f"Incoming call icons found at: {incoming_calls}")
-    print(f"Outgoing call icons found at: {outgoing_calls}")
-
-    # Assuming call details are in the same bounding boxes as icons; adjust as necessary
-    text = extract_text(processed_image)
-#     print(f"Extracted Text: {text}")
-
-# if name == "main":
-#     screenshot_path = 'your_screenshot.png'
-#     incoming_icon_path = 'incoming_icon_template.png'
-#     outgoing_icon_path = 'outgoing_icon_template.png'
-#     main(screenshot_path, incoming_icon_path, outgoing_icon_path)
-
 
 
 hour_translation = {'eng': 'hr', 'rus': 'ч'}
@@ -51,12 +29,14 @@ class CallDirection(Enum):
     OUT = 'outgoing'
 
 
-class Call():
+@dataclass
+class Call:
     type: CallType
     direction: CallDirection
     missed: bool
-    duration: timedelta
+
     timestamp: datetime
+    duration: timedelta
 
 
 def preprocess_image(image_path: str) -> cv2.typing.MatLike:
@@ -82,11 +62,13 @@ def template_matching(image: cv2.typing.MatLike, template_path: str) -> tuple[li
 
 
 def crop_image(image: cv2.typing.MatLike, x: int, y: int, width: int, height: int) -> cv2.typing.MatLike:
-    y_image_center = y + int(height / 2)
-    y_lower_border = y + height
-    x_right_border = x + width
+    y_template_center = y + int(height / 2)
+    y_template_lower_border = y + height
+    x_template_right_border = x + width
+    x_image_right_border = image.shape[0]
 
-    return image[y_image_center:y_lower_border, x_right_border:width]
+    return image[y_template_center:y_template_lower_border,
+                 x_template_right_border:x_image_right_border]
 
 
 def text_to_time(text: str, lang: str) -> tuple[time, timedelta]:
@@ -124,7 +106,7 @@ def text_to_time(text: str, lang: str) -> tuple[time, timedelta]:
 
 def image_to_time(image: cv2.typing.MatLike, lang: str) -> tuple[time, timedelta]:
     config = os.path.abspath(f'resources/{lang}.config')
-    call_text = pytesseract.image_to_string(call_image, lang=lang, config=f'"{config}"')
+    call_text = pytesseract.image_to_string(image, lang=lang, config=f'"{config}"')
     return text_to_time(call_text, lang)
 
 
@@ -140,17 +122,18 @@ if __name__ == '__main__':
         audio_calls, w, h = template_matching(image, 'resources/audio.bmp')
         video_calls, _, _ = template_matching(image, 'resources/video.bmp')
 
-        # log = []
-        # file = open('log.txt', 'w', encoding='utf-8')
+        file = open('log.txt', 'w', encoding='utf-8')
         for x, y in audio_calls:
             call_image = crop_image(image, x, y, w, h)
             call_time, call_duration = image_to_time(call_image, lang)
+            call = Call(
+                type = CallType.AUDIO,
+                direction = CallDirection.IN if x < width / 2 else CallDirection.OUT,
+                missed = call_duration is None,
+                timestamp = call_time,
+                duration = call_duration,
+            )
 
+            file.write(f'{call.type.value} {call.direction.value} {call.missed} {call.timestamp} {call.duration}\n')
 
-
-        #     if call_time is None or duration is None:
-        #         file.write(f'time = {call_time}, duration = {duration}, text = "{text}"\n')
-        #     else:
-        #         file.write(f'time = {call_time}, duration = {duration}\n')
-
-        # file.close()
+        file.close()
