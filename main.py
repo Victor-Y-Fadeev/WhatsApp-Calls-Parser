@@ -135,6 +135,14 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
     return call_list
 
 
+def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
+    for i in range(1, 1 + min(len(previous), len(next))):
+        if previous[-i:] == next[:i]:
+            return previous + next[i:]
+
+    return previous + next
+
+
 def calls_to_csv(path: str, calls: list[Call]):
     with open(path, 'w', newline='') as csvfile:
         header = map(lambda field: field.name, fields(Call))
@@ -148,4 +156,6 @@ def calls_to_csv(path: str, calls: list[Call]):
 if __name__ == '__main__':
     lang = 'rus'
     screenshots = glob.glob('Screenshot_*.jpg')
-    calls_to_csv('calls.csv', screenshot_to_calls(screenshots[0], lang))
+    calls = [screenshot_to_calls(screenshots[0], lang), screenshot_to_calls(screenshots[1], lang)]
+
+    calls_to_csv('calls.csv', merge_call_lists(calls[0], calls[1]))
