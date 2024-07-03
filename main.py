@@ -64,34 +64,33 @@ def template_matching(image: cv2.typing.MatLike, template_path: str) -> tuple[li
 
 def text_to_call_time(text: str, lang: str) -> tuple[time, timedelta]:
     lines = text.splitlines()
+    duration_match = re.search(r'^\s*(?P<hours>\d{1,2})\D*(?P<minutes>\d{1,2})', lines[0])
+
+    hour_character = hour_translation[lang][0]
+    hours_match = re.search(r'^\s*(?P<hours>\d{1,2})\s*' + hour_character, lines[0])
+
+    minute_character = minute_translation[lang][0]
+    minutes_match = re.search(r'^\s*(?P<minutes>\d{1,2})\s*' + minute_character, lines[0])
+
+    second_character = second_translation[lang][0]
+    seconds_match = re.search(r'^\s*(?P<seconds>\d{1,2})\s*' + second_character, lines[0])
+
+    call_duration = timedelta(
+        hours=int(duration_match.group('hours')),
+        minutes=int(duration_match.group('minutes')),
+    ) if duration_match else timedelta(
+        hours=int(hours_match.group('hours')),
+    ) if hours_match else timedelta(
+        minutes=int(minutes_match.group('minutes')),
+    ) if minutes_match else timedelta(
+        seconds=int(seconds_match.group('seconds')),
+    ) if seconds_match else None
 
     time_match = re.search(r'(^|\D)(?P<hour>\d{2}).?(?P<minute>\d{2})\s*$', lines[-1])
     call_time = None if not time_match else time(
         hour=int(time_match.group('hour')),
         minute=int(time_match.group('minute')),
     )
-
-    second_character = second_translation[lang][0]
-    seconds_match = re.search(r'^\s*(?P<seconds>\d{1,2})\s*' + second_character, lines[0])
-
-    minute_character = minute_translation[lang][0]
-    minutes_match = re.search(r'^\s*(?P<minutes>\d{1,2})\s*' + minute_character, lines[0])
-
-    hour_character = hour_translation[lang][0]
-    hours_match = re.search(r'^\s*(?P<hours>\d{1,2})\s*' + hour_character, lines[0])
-
-    duration_match = re.search(r'^\s*(?P<hours>\d{1,2})\D*(?P<minutes>\d{1,2})', lines[0])
-
-    call_duration = timedelta(
-        seconds=int(seconds_match.group('seconds')),
-    ) if seconds_match else timedelta(
-        minutes=int(minutes_match.group('minutes')),
-    ) if minutes_match else timedelta(
-        hours=int(hours_match.group('hours')),
-    ) if hours_match else timedelta(
-        minutes=int(duration_match.group('minutes')),
-        hours=int(duration_match.group('hours')),
-    ) if duration_match else None
 
     return call_time, call_duration
 
