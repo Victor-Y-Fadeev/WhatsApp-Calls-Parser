@@ -3,6 +3,8 @@ import pytesseract
 import numpy as np
 import glob
 import os
+import re
+from datetime import datetime, time, timedelta
 
 # Ensure pytesseract can find the Tesseract-OCR executable
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
@@ -32,12 +34,19 @@ def main(screenshot_path, incoming_icon_path, outgoing_icon_path):
 #     main(screenshot_path, incoming_icon_path, outgoing_icon_path)
 
 
-def preprocess_image(image_path):
+
+hour_translation = {'eng': 'hr', 'rus': 'ч'}
+minute_translation = {'eng': 'min', 'rus': 'мин'}
+second_translation = {'eng': 'sec', 'rus': 'с'}
+
+
+def preprocess_image(image_path: str) -> cv2.typing.MatLike:
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     _, binary_image = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     return binary_image
 
-def template_matching(image, template_path):
+
+def template_matching(image: cv2.typing.MatLike, template_path: str) -> tuple[list[tuple[int, int]], int, int]:
     template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
     width, height = template.shape[::-1]
 
@@ -51,6 +60,41 @@ def template_matching(image, template_path):
             filtered.append(pt)
 
     return filtered, width, height
+
+
+def text_to_call_time(text: str, lang: str) -> tuple[time, timedelta]:
+    lines = text.splitlines()
+
+    time_match = re.search(r'(^|\D)(?P<hour>\d{2}).?(?P<minute>\d{2})$', lines[-1])
+    call_time = None if not time_match else time(
+        hour=int(time_match.group('hour')),
+        minute=int(time_match.group('minute')),
+    )
+
+    second_character = second_translation[lang][0]
+    seconds_match = re.search(r'^(?P<seconds>\d{1,2})\s*' + second_character, lines[0])
+
+    minute_character = minute_translation[lang][0]
+    minutes_match = re.search(r'^(?P<minutes>\d{1,2})\s*' + minute_character, lines[0])
+
+    hour_character = hour_translation[lang][0]
+    hours_match = re.search(r'^(?P<hours>\d{1,2})\s*' + hour_character, lines[0])
+
+    duration_match = re.search(r'^(?P<hours>\d{1,2})\D*(?P<minutes>\d{1,2})', lines[0])
+
+    call_duration = timedelta(
+        seconds=int(seconds_match.group('seconds')),
+    ) if seconds_match else timedelta(
+        minutes=int(minutes_match.group('minutes')),
+    ) if minutes_match else timedelta(
+        hours=int(hours_match.group('hours')),
+    ) if hours_match else timedelta(
+        minutes=int(duration_match.group('minutes')),
+        hours=int(duration_match.group('hours')),
+    ) if duration_match else None
+
+    return call_time, call_duration
+
 
 if __name__ == '__main__':
     lang = 'rus'
@@ -70,8 +114,12 @@ if __name__ == '__main__':
         file = open('log.txt', 'w', encoding='utf-8')
         for x, y in audio_calls:
             cut = image[y + int(h / 2):y + h, x + w:width]
-            print(f'{x} {y}')
+            # print(f'{x} {y}')
             text = pytesseract.image_to_string(cut, lang=lang, config=f'"{config}"')
-            file.write(f'"{text}"')
+            call_time, duration = text_to_call_time(text, lang)
+            if call_time is None or duration is None:
+                file.write(f'time = {call_time}, duration = {duration}, text = "{text}"\n')
+            else:
+                file.write(f'time = {call_time}, duration = {duration}\n')
 
         file.close()
