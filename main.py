@@ -3,6 +3,7 @@ import re
 import csv
 import glob
 from enum import StrEnum
+from functools import reduce
 from dataclasses import dataclass, fields, asdict
 from datetime import datetime, time, timedelta
 
@@ -155,7 +156,8 @@ def calls_to_csv(path: str, calls: list[Call]):
 
 if __name__ == '__main__':
     lang = 'rus'
-    screenshots = glob.glob('Screenshot_*.jpg')
-    calls = [screenshot_to_calls(screenshots[0], lang), screenshot_to_calls(screenshots[1], lang)]
+    screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    calls_to_csv('calls.csv', merge_call_lists(calls[0], calls[1]))
+    call_lists = map(lambda path: screenshot_to_calls(path, lang), screenshots)
+    calls = reduce(merge_call_lists, call_lists)
+    calls_to_csv('calls.csv', calls)
