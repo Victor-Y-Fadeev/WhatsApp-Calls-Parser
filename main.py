@@ -31,8 +31,8 @@ class CallDirection(Enum):
 
 @dataclass
 class Call:
-    type: CallType
     direction: CallDirection
+    type: CallType
     missed: bool
 
     timestamp: datetime
@@ -110,30 +110,36 @@ def image_to_time(image: cv2.typing.MatLike, lang: str) -> tuple[time, timedelta
     return text_to_time(call_text, lang)
 
 
-if __name__ == '__main__':
-    lang = 'rus'
-    screenshots = glob.glob('Screenshot_*.jpg')
-    screenshots = [screenshots[0]]
+def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
+    image = preprocess_image(screenshot_path)
+    width = image.shape[0]
 
-    for screenshot in screenshots:
-        image = preprocess_image(screenshot)
-        width, height = image.shape[::-1]
+    audio_calls, w, h = template_matching(image, 'resources/audio.bmp')
+    video_calls, _, _ = template_matching(image, 'resources/video.bmp')
 
-        audio_calls, w, h = template_matching(image, 'resources/audio.bmp')
-        video_calls, _, _ = template_matching(image, 'resources/video.bmp')
-
-        file = open('log.txt', 'w', encoding='utf-8')
-        for x, y in audio_calls:
+    call_dict = {}
+    for call_type, call_list  in [(CallType.AUDIO, audio_calls), (CallType.VIDEO, video_calls)]:
+        for x, y in call_list:
             call_image = crop_image(image, x, y, w, h)
             call_time, call_duration = image_to_time(call_image, lang)
-            call = Call(
-                type = CallType.AUDIO,
+            call_dict[y] = Call(
                 direction = CallDirection.IN if x < width / 2 else CallDirection.OUT,
+                type = call_type,
                 missed = call_duration is None,
                 timestamp = call_time,
                 duration = call_duration,
             )
 
-            file.write(f'{call.type.value} {call.direction.value} {call.missed} {call.timestamp} {call.duration}\n')
+    _, call_list = zip(*sorted(call_dict.items()))
+    return call_list
 
-        file.close()
+
+if __name__ == '__main__':
+    lang = 'rus'
+    screenshots = glob.glob('Screenshot_*.jpg')
+
+    file = open('log.txt', 'w', encoding='utf-8')
+    for call in screenshot_to_calls(screenshots[0], lang):
+        file.write(f'{call.type.value} {call.direction.value} {call.missed} {call.timestamp} {call.duration}\n')
+
+    file.close()
