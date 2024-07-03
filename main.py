@@ -1,8 +1,9 @@
 import os
 import re
+import csv
 import glob
-from enum import Enum
-from dataclasses import dataclass
+from enum import StrEnum
+from dataclasses import dataclass, fields, asdict
 from datetime import datetime, time, timedelta
 
 import cv2
@@ -19,20 +20,20 @@ minute_translation = {'eng': 'min', 'rus': 'мин'}
 second_translation = {'eng': 'sec', 'rus': 'с'}
 
 
-class CallType(Enum):
+class CallType(StrEnum):
     AUDIO = 'audio'
     VIDEO = 'video'
 
 
-class CallDirection(Enum):
+class CallDirection(StrEnum):
     IN = 'incoming'
     OUT = 'outgoing'
 
 
 @dataclass
 class Call:
-    direction: CallDirection
     type: CallType
+    direction: CallDirection
     missed: bool
 
     timestamp: datetime
@@ -114,8 +115,8 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
     image = preprocess_image(screenshot_path)
     width = image.shape[0]
 
-    audio_calls, w, h = template_matching(image, 'resources/audio.bmp')
-    video_calls, _, _ = template_matching(image, 'resources/video.bmp')
+    audio_calls, w, h = template_matching(image, 'resources/audio.png')
+    video_calls, _, _ = template_matching(image, 'resources/video.png')
 
     call_dict = {}
     for call_type, call_list  in [(CallType.AUDIO, audio_calls), (CallType.VIDEO, video_calls)]:
@@ -134,12 +135,17 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
     return call_list
 
 
+def calls_to_csv(calls: list[Call]):
+    with open('calls.csv', 'w', newline='') as csvfile:
+        header = map(lambda field: field.name, fields(Call))
+        writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=header)
+
+        writer.writeheader()
+        for call in calls:
+            writer.writerow(asdict(call))
+
+
 if __name__ == '__main__':
     lang = 'rus'
     screenshots = glob.glob('Screenshot_*.jpg')
-
-    file = open('log.txt', 'w', encoding='utf-8')
-    for call in screenshot_to_calls(screenshots[0], lang):
-        file.write(f'{call.type.value} {call.direction.value} {call.missed} {call.timestamp} {call.duration}\n')
-
-    file.close()
+    calls_to_csv(screenshot_to_calls(screenshots[0], lang))

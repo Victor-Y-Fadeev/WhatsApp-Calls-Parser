@@ -163,6 +163,7 @@ cython_debug/
 
 # Custom
 *.txt
+*.csv
 *.xml
 *.jpg
 *.apk
