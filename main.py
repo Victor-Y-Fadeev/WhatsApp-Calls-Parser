@@ -5,8 +5,8 @@ import glob
 
 from enum import StrEnum
 from typing import Iterable
-from dataclasses import dataclass, fields, asdict
-from datetime import datetime, time, timedelta
+from pydantic import BaseModel
+from datetime import datetime, date, time, timedelta
 from dateutil import parser
 
 import cv2
@@ -37,14 +37,14 @@ class CallDirection(StrEnum):
     OUT = 'outgoing'
 
 
-@dataclass
-class Call:
+# @dataclass
+class Call(BaseModel):
     type: CallType = None
     direction: CallDirection = None
     missed: bool = None
 
-    timestamp: datetime = None
-    duration: timedelta = None
+    timestamp: datetime | None = None
+    duration: timedelta | None = None
 
 
 def preprocess_image(image_path: str) -> cv2.typing.MatLike:
@@ -129,7 +129,7 @@ def call_parser(pt: tuple[int, int], w: int, h: int, image: cv2.typing.MatLike,
         direction = CallDirection.IN if pt[0] < image_center else CallDirection.OUT,
         type = call_type,
         missed = call_duration is None,
-        timestamp = call_time,
+        timestamp = datetime.combine(date(1, 1, 1), call_time) if call_time else None,
         duration = call_duration,
     )
 
@@ -161,19 +161,17 @@ def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
 
 def export_to_csv(path: str, calls: list[Call]):
     with open(path, 'w', newline='') as csvfile:
-        header = map(lambda field: field.name, fields(Call))
-        writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=header)
-
+        writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=Call.model_fields.keys())
         writer.writeheader()
         for call in calls:
-            writer.writerow(asdict(call))
+            writer.writerow(call.model_dump())
 
 
 def import_from_csv(path: str) -> Iterable[Call]:
     with open(path, newline='') as csvfile:
         reader = csv.DictReader(csvfile, delimiter=';')
         for row in reader:
-            yield Call(**row)
+            yield Call(**{k: v for k, v in row.items() if v})
 
 
 def import_from_txt(path: str) -> Iterable[Call]:
@@ -188,6 +186,21 @@ def import_from_txt(path: str) -> Iterable[Call]:
                 )
 
 
+def expand_calls_by_chat(calls: list[Call], chat_nulls: list[Call]) -> list[Call]:
+    in_out_mode = {call.direction for call in calls} == {call.direction for call in chat_nulls}
+
+    i, j = 1, 1
+    while i <= len(calls) and j <= len(chat_nulls):
+        if (calls[-i].timestamp is None or calls[-i].timestamp.time() == chat_nulls[-j].timestamp.time()) and \
+                (not in_out_mode or calls[-i].direction == chat_nulls[-j].direction):
+            calls[-i].timestamp = chat_nulls[-j].timestamp
+            i = i + 1
+
+        j = j + 1
+
+    return calls
+
+
 if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
@@ -198,8 +211,12 @@ if __name__ == '__main__':
 
     # calls = reduce(merge_call_lists, call_lists)
     # export_to_csv('calls.csv', calls)
-    # calls = import_from_csv('calls.csv')
 
-    chat = glob.glob('*WhatsApp*.txt')[0]
-    chat_nulls = import_from_txt(chat)
-    export_to_csv('chat.csv', chat_nulls)
+    calls = import_from_csv('calls.csv')
+    export_to_csv('calls2.csv', calls)
+
+    # chat = glob.glob('*WhatsApp*.txt')[0]
+    # chat_nulls = import_from_txt(chat)
+    # # export_to_csv('chat.csv', chat_nulls)
+    # calls = expand_calls_by_chat(list(calls), list(chat_nulls))
+    # export_to_csv('expanded_calls.csv', calls)

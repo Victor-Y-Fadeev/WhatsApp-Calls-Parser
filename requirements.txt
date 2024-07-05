@@ -2,4 +2,5 @@ opencv-python
 pytesseract
 pillow
 numpy
+pydantic
 python-dateutil
