@@ -4,6 +4,7 @@ import csv
 import glob
 
 from enum import StrEnum
+from typing import Iterable
 from dataclasses import dataclass, fields, asdict
 from datetime import datetime, time, timedelta
 
@@ -157,7 +158,7 @@ def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
     return previous + next
 
 
-def calls_to_csv(path: str, calls: list[Call]):
+def export_to_csv(path: str, calls: list[Call]):
     with open(path, 'w', newline='') as csvfile:
         header = map(lambda field: field.name, fields(Call))
         writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=header)
@@ -167,13 +168,21 @@ def calls_to_csv(path: str, calls: list[Call]):
             writer.writerow(asdict(call))
 
 
+def import_from_csv(path: str) -> Iterable[Call]:
+    with open(path, newline='') as csvfile:
+        reader = csv.DictReader(csvfile, delimiter=';')
+        for row in reader:
+            yield Call(**row)
+
+
 if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    call_lists = []
-    with Pool(min(os.cpu_count(), len(screenshots))) as pool:
-        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+    # call_lists = []
+    # with Pool(min(os.cpu_count(), len(screenshots))) as pool:
+    #     call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
 
-    calls = reduce(merge_call_lists, call_lists)
-    calls_to_csv('calls.csv', calls)
+    # calls = reduce(merge_call_lists, call_lists)
+    # export_to_csv('calls.csv', calls)
+    calls = import_from_csv('calls.csv')
