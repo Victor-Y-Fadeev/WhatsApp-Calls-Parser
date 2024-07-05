@@ -191,17 +191,22 @@ def import_from_txt(path: str) -> list[Call]:
     return result
 
 
+def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(minutes=1)) -> bool:
+    delta = abs(rhs - lhs.replace(year=rhs.year, month=rhs.month, day=rhs.day))
+    return delta <= epsilon or (timedelta(days=1) - delta) < epsilon
+
+
 def expand_calls_by_chat(calls: list[Call], chat_nulls: list[Call]) -> list[Call]:
     in_out_mode = {call.direction for call in calls} == {call.direction for call in chat_nulls}
 
-    i, j = 1, 1
-    while i <= len(calls) and j <= len(chat_nulls):
-        if (calls[-i].timestamp is None or calls[-i].timestamp.time() == chat_nulls[-j].timestamp.time()) and \
-                (not in_out_mode or calls[-i].direction == chat_nulls[-j].direction):
-            calls[-i].timestamp = chat_nulls[-j].timestamp
-            i = i + 1
+    i, j = len(calls) - 1, len(chat_nulls) - 1
+    while i >= 0 and j >= 0:
+        if (not in_out_mode or calls[i].direction == chat_nulls[j].direction) and \
+            (calls[i].timestamp is None or compare_time(calls[i].timestamp, chat_nulls[j].timestamp)):
+                calls[i].timestamp = chat_nulls[j].timestamp
+                i = i - 1
 
-        j = j + 1
+        j = j - 1
 
     return calls
 
