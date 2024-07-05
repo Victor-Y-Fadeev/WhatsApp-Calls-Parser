@@ -2,15 +2,18 @@ import os
 import re
 import csv
 import glob
+
 from enum import StrEnum
-from multiprocessing import Pool
-from functools import partial, reduce
 from dataclasses import dataclass, fields, asdict
 from datetime import datetime, time, timedelta
 
 import cv2
 import pytesseract
 import numpy as np
+
+from functools import partial, reduce
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
 
 
 # Ensure pytesseract can find the Tesseract-OCR executable
@@ -134,9 +137,11 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
 
     audio_calls, w, h = template_matching(image, 'resources/audio.png')
     video_calls, _, _ = template_matching(image, 'resources/video.png')
+
+    processes = min(os.cpu_count(), max(len(audio_calls), len(video_calls)))
     custom_call_parser = partial(call_parser, w=w, h=h, image=image, lang=lang)
 
-    with Pool() as pool:
+    with ThreadPool(processes) as pool:
         _, call_list = zip(*sorted(
             pool.map(partial(custom_call_parser, call_type=CallType.AUDIO), audio_calls) +
             pool.map(partial(custom_call_parser, call_type=CallType.VIDEO), video_calls)
@@ -166,9 +171,13 @@ if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    # call_lists = []
-    # with Pool() as pool:
-    call_lists = map(partial(screenshot_to_calls, lang=lang), screenshots)
+    start = datetime.now()
+
+    call_lists = []
+    with Pool(min(os.cpu_count(), len(screenshots))) as pool:
+        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
 
     calls = reduce(merge_call_lists, call_lists)
     calls_to_csv('calls.csv', calls)
+
+    print(datetime.now() - start)
