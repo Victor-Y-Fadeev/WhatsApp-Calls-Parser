@@ -171,13 +171,9 @@ if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    start = datetime.now()
-
     call_lists = []
     with Pool(min(os.cpu_count(), len(screenshots))) as pool:
         call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
 
     calls = reduce(merge_call_lists, call_lists)
     calls_to_csv('calls.csv', calls)
-
-    print(datetime.now() - start)
