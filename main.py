@@ -113,28 +113,35 @@ def image_to_time(image: cv2.typing.MatLike, lang: str) -> tuple[time, timedelta
     return text_to_time(call_text, lang)
 
 
+def call_parser(pt: tuple[int, int], w: int, h: int, image: cv2.typing.MatLike,
+                call_type: CallType, lang: str) -> tuple[int, Call]:
+    image_center = image.shape[0] / 2
+
+    call_image = crop_image(image, pt[0], pt[1], w, h)
+    call_time, call_duration = image_to_time(call_image, lang)
+
+    return pt[1], Call(
+        direction = CallDirection.IN if pt[0] < image_center else CallDirection.OUT,
+        type = call_type,
+        missed = call_duration is None,
+        timestamp = call_time,
+        duration = call_duration,
+    )
+
+
 def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
     image = preprocess_image(screenshot_path)
-    width = image.shape[0]
 
     audio_calls, w, h = template_matching(image, 'resources/audio.png')
     video_calls, _, _ = template_matching(image, 'resources/video.png')
+    custom_call_parser = partial(call_parser, w=w, h=h, image=image, lang=lang)
 
-    call_dict = {}
-    for call_type, call_list  in [(CallType.AUDIO, audio_calls), (CallType.VIDEO, video_calls)]:
-        for x, y in call_list:
-            call_image = crop_image(image, x, y, w, h)
-            call_time, call_duration = image_to_time(call_image, lang)
-            call_dict[y] = Call(
-                direction = CallDirection.IN if x < width / 2 else CallDirection.OUT,
-                type = call_type,
-                missed = call_duration is None,
-                timestamp = call_time,
-                duration = call_duration,
-            )
-
-    _, call_list = zip(*sorted(call_dict.items()))
-    return call_list
+    with Pool() as pool:
+        _, call_list = zip(*sorted(
+            pool.map(partial(custom_call_parser, call_type=CallType.AUDIO), audio_calls) +
+            pool.map(partial(custom_call_parser, call_type=CallType.VIDEO), video_calls)
+        ))
+        return call_list
 
 
 def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
@@ -159,9 +166,9 @@ if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    call_lists = []
-    with Pool() as pool:
-        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+    # call_lists = []
+    # with Pool() as pool:
+    call_lists = map(partial(screenshot_to_calls, lang=lang), screenshots)
 
     calls = reduce(merge_call_lists, call_lists)
     calls_to_csv('calls.csv', calls)
