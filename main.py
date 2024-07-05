@@ -3,7 +3,8 @@ import re
 import csv
 import glob
 from enum import StrEnum
-from functools import reduce
+from multiprocessing import Pool
+from functools import partial, reduce
 from dataclasses import dataclass, fields, asdict
 from datetime import datetime, time, timedelta
 
@@ -158,6 +159,9 @@ if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    call_lists = map(lambda path: screenshot_to_calls(path, lang), screenshots)
+    call_lists = []
+    with Pool() as pool:
+        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+
     calls = reduce(merge_call_lists, call_lists)
     calls_to_csv('calls.csv', calls)
