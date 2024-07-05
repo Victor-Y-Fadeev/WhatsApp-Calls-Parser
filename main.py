@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import Iterable
 from dataclasses import dataclass, fields, asdict
 from datetime import datetime, time, timedelta
+from dateutil import parser
 
 import cv2
 import pytesseract
@@ -38,12 +39,12 @@ class CallDirection(StrEnum):
 
 @dataclass
 class Call:
-    type: CallType
-    direction: CallDirection
-    missed: bool
+    type: CallType = None
+    direction: CallDirection = None
+    missed: bool = None
 
-    timestamp: datetime
-    duration: timedelta
+    timestamp: datetime = None
+    duration: timedelta = None
 
 
 def preprocess_image(image_path: str) -> cv2.typing.MatLike:
@@ -175,6 +176,18 @@ def import_from_csv(path: str) -> Iterable[Call]:
             yield Call(**row)
 
 
+def import_from_txt(path: str) -> Iterable[Call]:
+    with open(path, encoding='utf-8') as file:
+        for line in file:
+            match = re.search(r'^(?P<timestamp>.*)\s+\-\s+(?P<author>.*)\: null$', line)
+            if match:
+                yield Call(
+                    timestamp = parser.parse(match.group('timestamp')),
+                    direction = CallDirection.IN if match.group('author') in path \
+                        else CallDirection.OUT,
+                )
+
+
 if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
@@ -185,4 +198,8 @@ if __name__ == '__main__':
 
     # calls = reduce(merge_call_lists, call_lists)
     # export_to_csv('calls.csv', calls)
-    calls = import_from_csv('calls.csv')
+    # calls = import_from_csv('calls.csv')
+
+    chat = glob.glob('*WhatsApp*.txt')[0]
+    chat_nulls = import_from_txt(chat)
+    export_to_csv('chat.csv', chat_nulls)
