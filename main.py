@@ -4,7 +4,6 @@ import csv
 import glob
 
 from enum import StrEnum
-from typing import Iterable
 from pydantic import BaseModel
 from datetime import datetime, date, time, timedelta
 from dateutil import parser
@@ -167,23 +166,29 @@ def export_to_csv(path: str, calls: list[Call]):
             writer.writerow(call.model_dump())
 
 
-def import_from_csv(path: str) -> Iterable[Call]:
+def import_from_csv(path: str) -> list[Call]:
+    result = []
     with open(path, newline='') as csvfile:
         reader = csv.DictReader(csvfile, delimiter=';')
         for row in reader:
-            yield Call(**{k: v for k, v in row.items() if v})
+            result.append(Call(**{k: v for k, v in row.items() if v}))
+
+    return result
 
 
-def import_from_txt(path: str) -> Iterable[Call]:
+def import_from_txt(path: str) -> list[Call]:
+    result = []
     with open(path, encoding='utf-8') as file:
         for line in file:
             match = re.search(r'^(?P<timestamp>.*)\s+\-\s+(?P<author>.*)\: null$', line)
             if match:
-                yield Call(
+                result.append(Call(
                     timestamp = parser.parse(match.group('timestamp')),
                     direction = CallDirection.IN if match.group('author') in path \
                         else CallDirection.OUT,
-                )
+                ))
+
+    return result
 
 
 def expand_calls_by_chat(calls: list[Call], chat_nulls: list[Call]) -> list[Call]:
@@ -213,10 +218,10 @@ if __name__ == '__main__':
     # export_to_csv('calls.csv', calls)
 
     calls = import_from_csv('calls.csv')
-    export_to_csv('calls2.csv', calls)
+    # export_to_csv('calls2.csv', calls)
 
-    # chat = glob.glob('*WhatsApp*.txt')[0]
-    # chat_nulls = import_from_txt(chat)
-    # # export_to_csv('chat.csv', chat_nulls)
-    # calls = expand_calls_by_chat(list(calls), list(chat_nulls))
-    # export_to_csv('expanded_calls.csv', calls)
+    chat = glob.glob('*WhatsApp*.txt')[0]
+    chat_nulls = import_from_txt(chat)
+    export_to_csv('chat.csv', chat_nulls)
+    calls = expand_calls_by_chat(calls, chat_nulls)
+    export_to_csv('expanded_calls.csv', calls)
