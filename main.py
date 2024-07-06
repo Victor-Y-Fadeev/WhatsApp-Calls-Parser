@@ -196,19 +196,52 @@ def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(mi
     return delta <= epsilon or (timedelta(days=1) - delta) < epsilon
 
 
-def expand_calls_by_chat(calls: list[Call], chat_nulls: list[Call]) -> list[Call]:
-    in_out_mode = {call.direction for call in calls} == {call.direction for call in chat_nulls}
+def recognition_correction(calls: list[Call], nulls: list[Call]) -> list[Call]:
+    assert len(calls) <= len(nulls)
+    if len(calls) == 0:
+        return []
 
-    i, j = len(calls) - 1, len(chat_nulls) - 1
-    while i >= 0 and j >= 0:
-        if (not in_out_mode or calls[i].direction == chat_nulls[j].direction) and \
-            (calls[i].timestamp is None or compare_time(calls[i].timestamp, chat_nulls[j].timestamp)):
-                calls[i].timestamp = chat_nulls[j].timestamp
-                i = i - 1
+    if len(calls) == len(nulls):
+        for i in range(len(calls)):
+            calls[i].timestamp = nulls[i].timestamp
+    else:
+        for i in range(len(calls)):
+            print(calls[i].timestamp)
 
-        j = j - 1
 
     return calls
+
+
+def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
+    in_out_mode = {call.direction for call in calls} == {call.direction for call in nulls}
+
+    comparator = lambda call_index, null_index: (calls[call_index].timestamp is None or
+        compare_time(calls[call_index].timestamp, nulls[null_index].timestamp)) and \
+            (not in_out_mode or calls[call_index].direction == nulls[null_index].direction)
+
+    calls, nulls = calls[::-1], nulls[::-1]
+    call_lower_index = call_upper_index = 0
+    null_lower_index = null_upper_index = 0
+
+    while call_lower_index < len(calls) and call_upper_index < len(calls) and \
+            null_lower_index < len(nulls) and null_upper_index < len(nulls):
+        call_upper_index = call_upper_index + 1
+
+        for i in range(call_lower_index, call_upper_index):
+            # assert i - call_lower_index <= null_upper_index - null_lower_index
+            if comparator(i, null_upper_index):
+                calls[i].timestamp = nulls[null_upper_index].timestamp
+                calls[call_lower_index:i] = recognition_correction(calls[call_lower_index:i],
+                                                                   nulls[null_lower_index:null_upper_index])
+                null_lower_index = null_upper_index + 1
+                call_lower_index = i + 1
+                break
+
+        null_upper_index = null_upper_index + 1
+
+    # calls[call_lower_index:call_upper_index] = recognition_correction(calls[call_lower_index:call_upper_index],
+    #                                                                   nulls[null_lower_index:null_upper_index])
+    return calls[::-1]
 
 
 if __name__ == '__main__':
