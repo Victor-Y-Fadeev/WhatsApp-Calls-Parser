@@ -72,7 +72,8 @@ def crop_image(image: cv2.typing.MatLike, x: int, y: int, width: int, height: in
     y_template_center = y + int(height / 2)
     y_template_lower_border = y + height
     x_template_right_border = x + width
-    x_image_right_border = image.shape[0]
+    x_image_right_border = image.shape[1]
+    print(x_image_right_border)
 
     return image[y_template_center:y_template_lower_border,
                  x_template_right_border:x_image_right_border]
@@ -80,7 +81,7 @@ def crop_image(image: cv2.typing.MatLike, x: int, y: int, width: int, height: in
 
 def text_to_time(text: str, lang: str) -> tuple[time, timedelta]:
     lines = text.splitlines()
-    duration_match = re.search(r'^\s*(?P<hours>\d{1,2})\D*(?P<minutes>\d{1,2})', lines[0])
+    duration_match = re.search(r'^\s*(?P<hours>\d{1,2})\D+(?P<minutes>\d{1,2})', lines[0])
 
     hour_character = hour_translation[lang][0]
     hours_match = re.search(r'^\s*(?P<hours>\d{1,2})\s*' + hour_character, lines[0])
@@ -119,7 +120,8 @@ def image_to_time(image: cv2.typing.MatLike, lang: str) -> tuple[time, timedelta
 
 def call_parser(pt: tuple[int, int], w: int, h: int, image: cv2.typing.MatLike,
                 call_type: CallType, lang: str) -> tuple[int, Call]:
-    image_center = image.shape[0] / 2
+    image_center = image.shape[1] / 2
+    print(image_center)
 
     call_image = crop_image(image, pt[0], pt[1], w, h)
     call_time, call_duration = image_to_time(call_image, lang)
@@ -151,7 +153,10 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
 
 
 def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
-    for i in range(1, 1 + min(len(previous), len(next))):
+    if not previous[-1].timestamp:
+        previous = previous[:-1]
+
+    for i in range(1, 1 + min(len(previous), len(next)))[::-1]:
         if previous[-i:] == next[:i]:
             return previous + next[i:]
 
@@ -191,7 +196,7 @@ def import_from_txt(path: str) -> list[Call]:
     return result
 
 
-def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(minutes=1)) -> bool:
+def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(minutes=0)) -> bool:
     delta = abs(rhs - lhs.replace(year=rhs.year, month=rhs.month, day=rhs.day))
     return delta <= epsilon or (timedelta(days=1) - delta) < epsilon
 
@@ -205,9 +210,13 @@ def recognition_correction(calls: list[Call], nulls: list[Call]) -> list[Call]:
         for i in range(len(calls)):
             calls[i].timestamp = nulls[i].timestamp
     else:
-        for i in range(len(calls)):
-            print(calls[i].timestamp)
-
+        print()
+        for i in range(len(nulls)):
+            if i < len(calls):
+                print(f'{nulls[i].direction} {nulls[i].timestamp} {calls[i].direction} {calls[i].timestamp}')
+            else:
+                print(f'{nulls[i].direction} {nulls[i].timestamp}')
+        print()
 
     return calls
 
@@ -229,18 +238,42 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
 
         for i in range(call_lower_index, call_upper_index):
             # assert i - call_lower_index <= null_upper_index - null_lower_index
+            #        call_lower_index <= i
+            #        i <= call_upper_index
             if comparator(i, null_upper_index):
                 calls[i].timestamp = nulls[null_upper_index].timestamp
                 calls[call_lower_index:i] = recognition_correction(calls[call_lower_index:i],
                                                                    nulls[null_lower_index:null_upper_index])
                 null_lower_index = null_upper_index + 1
-                call_lower_index = i + 1
+                call_lower_index = call_upper_index = i + 1
                 break
 
         null_upper_index = null_upper_index + 1
 
-    # calls[call_lower_index:call_upper_index] = recognition_correction(calls[call_lower_index:call_upper_index],
-    #                                                                   nulls[null_lower_index:null_upper_index])
+    calls[call_lower_index:call_upper_index] = recognition_correction(calls[call_lower_index:call_upper_index],
+                                                                      nulls[null_lower_index:null_upper_index])
+    return calls[::-1]
+
+
+
+def expand_calls_by_chat_quadratic(calls: list[Call], nulls: list[Call]) -> list[Call]:
+    in_out_mode = {call.direction for call in calls} == {call.direction for call in nulls}
+
+    comparator = lambda call_index, null_index: (calls[call_index].timestamp is None or
+        compare_time(calls[call_index].timestamp, nulls[null_index].timestamp, timedelta(minutes=1))) and \
+            (not in_out_mode or calls[call_index].direction == nulls[null_index].direction)
+
+    calls, nulls = calls[::-1], nulls[::-1]
+
+    lower_index = 0
+    for i in range(len(calls)):
+        # for j in range(lower_index, len(nulls)):
+        for j in range(lower_index, min(len(nulls), lower_index + len(nulls) - len(calls) + i)):
+            if comparator(i, j):
+                calls[i].timestamp = nulls[j].timestamp
+                lower_index = j + 1
+                break
+
     return calls[::-1]
 
 
@@ -248,18 +281,17 @@ if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    # call_lists = []
-    # with Pool(min(os.cpu_count(), len(screenshots))) as pool:
-    #     call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+    call_lists = []
+    with Pool(min(os.cpu_count(), len(screenshots))) as pool:
+        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
 
-    # calls = reduce(merge_call_lists, call_lists)
-    # export_to_csv('calls.csv', calls)
-
+    calls = reduce(merge_call_lists, call_lists)
+    export_to_csv('calls.csv', calls)
     calls = import_from_csv('calls.csv')
-    # export_to_csv('calls2.csv', calls)
 
-    chat = glob.glob('*WhatsApp*.txt')[0]
+    chat = glob.glob('*WhatsApp*.txt')[1]
     chat_nulls = import_from_txt(chat)
     export_to_csv('chat.csv', chat_nulls)
-    calls = expand_calls_by_chat(calls, chat_nulls)
+
+    calls = expand_calls_by_chat_quadratic(calls, chat_nulls)
     export_to_csv('expanded_calls.csv', calls)
