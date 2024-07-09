@@ -170,13 +170,9 @@ def export_to_csv(path: str, calls: list[Call]):
 
 
 def import_from_csv(path: str) -> list[Call]:
-    result = []
     with open(path, newline='') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter=';')
-        for row in reader:
-            result.append(Call(**{k: v for k, v in row.items() if v}))
-
-    return result
+        return list(map(lambda row: Call(**{k: v for k, v in row.items() if v}),
+                        csv.DictReader(csvfile, delimiter=';')))
 
 
 def import_from_txt(path: str) -> list[Call]:
