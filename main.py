@@ -235,13 +235,14 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
         call_upper_index = call_upper_index + 1
 
         # print(f'len(calls[{call_lower_index}:{call_upper_index}]) = {call_upper_index-call_lower_index}; len(nulls[{null_lower_index}:{null_upper_index}]) = {null_upper_index-null_lower_index}')
-        for i in range(call_lower_index, call_upper_index):
-            # assert i - call_lower_index <= null_upper_index - null_lower_index
+        # print(f'{call_lower_index + null_upper_index - null_lower_index + 1}, {call_upper_index}')
+        for i in range(call_lower_index, min(call_lower_index + null_upper_index - null_lower_index + 1, call_upper_index)):
+            assert i - call_lower_index <= null_upper_index - null_lower_index
             #        call_lower_index <= i
             #        i <= call_upper_index
             if comparator(i, null_upper_index):
                 calls[i].timestamp = nulls[null_upper_index].timestamp
-                print(f'len(calls[{call_lower_index}:{i}]) = {i-call_lower_index}; len(nulls[{null_lower_index}:{null_upper_index}]) = {null_upper_index-null_lower_index}')
+                # print(f'len(calls[{call_lower_index}:{i}]) = {i-call_lower_index}; len(nulls[{null_lower_index}:{null_upper_index}]) = {null_upper_index-null_lower_index}')
                 calls[call_lower_index:i] = recognition_correction(calls[call_lower_index:i],
                                                                    nulls[null_lower_index:null_upper_index])
                 null_lower_index = null_upper_index + 1
