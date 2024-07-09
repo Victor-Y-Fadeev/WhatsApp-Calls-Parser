@@ -187,12 +187,13 @@ def import_from_txt(path: str) -> list[Call]:
                 authors.add(match.group('author'))
 
     filename = os.path.splitext(os.path.basename(path))[0]
-    authors = sorted(authors, reverse=True, key=lambda author: difflib.SequenceMatcher(
+    incoming = max(authors, key=lambda author: difflib.SequenceMatcher(
         None, filename[-len(author):], author).ratio())
-    direction = {authors[0]: CallDirection.IN,
-                 authors[1]: CallDirection.OUT}
 
-    return list(map(lambda match: Call(timestamp=match[0], direction=direction[match[1]]), result))
+    return list(map(lambda match: Call(
+        timestamp=match[0],
+        direction=CallDirection.IN if match[1] == incoming else CallDirection.OUT
+    ), result))
 
 
 def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(minutes=1)) -> bool:
