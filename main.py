@@ -206,14 +206,14 @@ def recognition_correction(calls: list[Call], nulls: list[Call]) -> list[Call]:
     if len(calls) == len(nulls):
         for i in range(len(calls)):
             calls[i].timestamp = nulls[i].timestamp
-    # else:
-    #     print()
-    #     for i in range(len(nulls)):
-    #         if i < len(calls):
-    #             print(f'{nulls[i].direction} {nulls[i].timestamp} {calls[i].direction} {calls[i].timestamp}')
-    #         else:
-    #             print(f'{nulls[i].direction} {nulls[i].timestamp}')
-    #     print()
+    else:
+        print()
+        for i in range(len(nulls)):
+            if i < len(calls):
+                print(f'{nulls[i].direction} {nulls[i].timestamp} {calls[i].direction} {calls[i].timestamp}')
+            else:
+                print(f'{nulls[i].direction} {nulls[i].timestamp}')
+        print()
 
     return calls
 
@@ -223,7 +223,7 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
 
     in_out_mode = {call.direction for call in calls} == {call.direction for call in nulls}
     comparator = lambda call_index, null_index: (calls[call_index].timestamp is None or
-        compare_time(calls[call_index].timestamp, nulls[null_index].timestamp)) and \
+        compare_time(calls[call_index].timestamp, nulls[null_index].timestamp), timedelta(minutes=1)) and \
             (not in_out_mode or calls[call_index].direction == nulls[null_index].direction)
 
     calls, nulls = calls[::-1], nulls[::-1]
@@ -234,15 +234,10 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
             null_lower_index < len(nulls) and null_upper_index < len(nulls):
         call_upper_index = call_upper_index + 1
 
-        # print(f'len(calls[{call_lower_index}:{call_upper_index}]) = {call_upper_index-call_lower_index}; len(nulls[{null_lower_index}:{null_upper_index}]) = {null_upper_index-null_lower_index}')
-        # print(f'{call_lower_index + null_upper_index - null_lower_index + 1}, {call_upper_index}')
-        for i in range(call_lower_index, min(call_lower_index + null_upper_index - null_lower_index + 1, call_upper_index)):
+        for i in range(call_lower_index, call_upper_index):
             assert i - call_lower_index <= null_upper_index - null_lower_index
-            #        call_lower_index <= i
-            #        i <= call_upper_index
             if comparator(i, null_upper_index):
                 calls[i].timestamp = nulls[null_upper_index].timestamp
-                # print(f'len(calls[{call_lower_index}:{i}]) = {i-call_lower_index}; len(nulls[{null_lower_index}:{null_upper_index}]) = {null_upper_index-null_lower_index}')
                 calls[call_lower_index:i] = recognition_correction(calls[call_lower_index:i],
                                                                    nulls[null_lower_index:null_upper_index])
                 null_lower_index = null_upper_index + 1
@@ -251,6 +246,8 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
 
         null_upper_index = null_upper_index + 1
 
+    print(f'calls[{call_lower_index}:{call_upper_index}], nulls[{null_lower_index}:{null_upper_index}]')
+    print(f'calls[{call_lower_index}:{len(calls)}], nulls[{null_lower_index}:{len(nulls)}]')
     calls[call_lower_index:call_upper_index] = recognition_correction(calls[call_lower_index:call_upper_index],
                                                                       nulls[null_lower_index:null_upper_index])
     return calls[::-1]
@@ -268,11 +265,18 @@ def expand_calls_by_chat_quadratic(calls: list[Call], nulls: list[Call]) -> list
     lower_index = 0
 
     for i in range(len(calls)):
-        for j in range(lower_index, min(lower_index + len(nulls[lower_index:]) - len(calls[i:]) + 1, len(nulls))):
+        old_lower_index = lower_index
+        upper_index = min(lower_index + len(nulls[lower_index:]) - len(calls[i:]) + 1, len(nulls))
+        for j in range(lower_index, upper_index):
             if comparator(i, j):
                 calls[i].timestamp = nulls[j].timestamp
                 lower_index = j + 1
                 break
+
+        if old_lower_index == lower_index:
+            print(calls[i].timestamp)
+            for call in nulls[lower_index:upper_index]:
+                print(f'    {call.timestamp}')
 
     return calls[::-1]
 
@@ -293,5 +297,5 @@ if __name__ == '__main__':
     chat_nulls = import_from_txt(chat)
     export_to_csv('chat.csv', chat_nulls)
 
-    calls = expand_calls_by_chat(calls, chat_nulls)
+    calls = expand_calls_by_chat_quadratic(calls, chat_nulls)
     export_to_csv('expanded_calls.csv', calls)
