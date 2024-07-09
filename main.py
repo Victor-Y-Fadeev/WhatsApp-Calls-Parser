@@ -6,6 +6,7 @@ import difflib
 
 from enum import StrEnum
 from pydantic import BaseModel
+from collections import Counter
 from datetime import datetime, date, time, timedelta
 from dateutil import parser
 
@@ -200,10 +201,18 @@ def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(mi
     return delta <= epsilon or (timedelta(days=1) - delta) < epsilon
 
 
+def time_digits_difference(damaged: datetime, candidate: datetime, minutes: int = 1) -> int:
+    return max([candidate + timedelta(minutes=i) for i in range(-minutes, minutes + 1)],
+               key=lambda timestamp: Counter([
+                   int(damaged.hour / 10) == int(timestamp.hour / 10),
+                   damaged.hour % 10 == timestamp.hour % 10,
+                   int(damaged.minute / 10) == int(timestamp.minute / 10),
+                   damaged.minute % 10 == timestamp.minute % 10])[False])
+
+
 def recognition_correction(call: Call, nulls: list[Call]) -> int:
     filtred = list(filter(lambda item: item[1].direction == call.direction, enumerate(nulls)))
 
-    print(f'{call.direction} {call.timestamp} {nulls[0].direction} {nulls[0].timestamp}')
     assert len(filtred) > 0
     if len(filtred) == 1:
         return filtred[0][0]
