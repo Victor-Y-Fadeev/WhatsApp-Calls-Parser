@@ -202,35 +202,26 @@ def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(mi
 
 
 def time_digits_difference(damaged: datetime, candidate: datetime, minutes: int = 1) -> int:
-    return max([candidate + timedelta(minutes=i) for i in range(-minutes, minutes + 1)],
-               key=lambda timestamp: Counter([
-                   int(damaged.hour / 10) == int(timestamp.hour / 10),
-                   damaged.hour % 10 == timestamp.hour % 10,
-                   int(damaged.minute / 10) == int(timestamp.minute / 10),
-                   damaged.minute % 10 == timestamp.minute % 10])[False])
+    multiplied = [candidate + timedelta(minutes=i) for i in range(-minutes, minutes + 1)]
+
+    differences = map(lambda timestamp: Counter([
+        int(damaged.hour / 10) == int(timestamp.hour / 10),
+        damaged.hour % 10 == timestamp.hour % 10,
+        int(damaged.minute / 10) == int(timestamp.minute / 10),
+        damaged.minute % 10 == timestamp.minute % 10
+    ])[False], multiplied)
+
+    return min(differences)
 
 
 def recognition_correction(call: Call, nulls: list[Call]) -> int:
     filtred = list(filter(lambda item: item[1].direction == call.direction, enumerate(nulls)))
-
     assert len(filtred) > 0
+
     if len(filtred) == 1:
         return filtred[0][0]
 
-    return 0
-    if len(calls) == len(nulls):
-        for i in range(len(calls)):
-            calls[i].timestamp = nulls[i].timestamp
-    else:
-        print()
-        for i in range(len(nulls)):
-            if i < len(calls):
-                print(f'{nulls[i].direction} {nulls[i].timestamp} {calls[i].direction} {calls[i].timestamp}')
-            else:
-                print(f'{nulls[i].direction} {nulls[i].timestamp}')
-        print()
-
-    return calls
+    return min(filtred, key=lambda item: time_digits_difference(call.timestamp, item[1].timestamp))[0]
 
 
 def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
