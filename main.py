@@ -192,8 +192,7 @@ def import_from_txt(path: str) -> list[Call]:
 
     return list(map(lambda match: Call(
         timestamp=match[0],
-        direction=CallDirection.IN if match[1] == incoming else CallDirection.OUT
-    ), result))
+        direction=CallDirection.IN if match[1] == incoming else CallDirection.OUT), result))
 
 
 def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(minutes=1)) -> bool:
@@ -221,55 +220,20 @@ def recognition_correction(calls: list[Call], nulls: list[Call]) -> list[Call]:
     return calls
 
 
-def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
-    assert len(calls) <= len(nulls)
-
-    in_out_mode = {call.direction for call in calls} == {call.direction for call in nulls}
-    comparator = lambda call_index, null_index: (calls[call_index].timestamp is None or
-        compare_time(calls[call_index].timestamp, nulls[null_index].timestamp), timedelta(minutes=1)) and \
-            (not in_out_mode or calls[call_index].direction == nulls[null_index].direction)
-
-    calls, nulls = calls[::-1], nulls[::-1]
-    call_lower_index = call_upper_index = 0
-    null_lower_index = null_upper_index = 0
-
-    while call_lower_index < len(calls) and call_upper_index < len(calls) and \
-            null_lower_index < len(nulls) and null_upper_index < len(nulls):
-        call_upper_index = call_upper_index + 1
-
-        for i in range(call_lower_index, call_upper_index):
-            assert i - call_lower_index <= null_upper_index - null_lower_index
-            if comparator(i, null_upper_index):
-                calls[i].timestamp = nulls[null_upper_index].timestamp
-                calls[call_lower_index:i] = recognition_correction(calls[call_lower_index:i],
-                                                                   nulls[null_lower_index:null_upper_index])
-                null_lower_index = null_upper_index + 1
-                call_lower_index = call_upper_index = i + 1
-                break
-
-        null_upper_index = null_upper_index + 1
-
-    print(f'calls[{call_lower_index}:{call_upper_index}], nulls[{null_lower_index}:{null_upper_index}]')
-    print(f'calls[{call_lower_index}:{len(calls)}], nulls[{null_lower_index}:{len(nulls)}]')
-    calls[call_lower_index:call_upper_index] = recognition_correction(calls[call_lower_index:call_upper_index],
-                                                                      nulls[null_lower_index:null_upper_index])
-    return calls[::-1]
-
-
 def expand_calls_by_chat_quadratic(calls: list[Call], nulls: list[Call]) -> list[Call]:
     assert len(calls) <= len(nulls)
 
-    in_out_mode = {call.direction for call in calls} == {call.direction for call in nulls}
     comparator = lambda call_index, null_index: (calls[call_index].timestamp is None or
         compare_time(calls[call_index].timestamp, nulls[null_index].timestamp)) and \
-            (not in_out_mode or calls[call_index].direction == nulls[null_index].direction)
+            calls[call_index].direction == nulls[null_index].direction
 
     calls, nulls = calls[::-1], nulls[::-1]
     lower_index = 0
 
     for i in range(len(calls)):
-        old_lower_index = lower_index
         upper_index = min(lower_index + len(nulls[lower_index:]) - len(calls[i:]) + 1, len(nulls))
+        old_lower_index = lower_index
+
         for j in range(lower_index, upper_index):
             if comparator(i, j):
                 calls[i].timestamp = nulls[j].timestamp
@@ -302,26 +266,3 @@ if __name__ == '__main__':
 
     calls = expand_calls_by_chat_quadratic(calls, chat_nulls)
     export_to_csv('expanded_calls.csv', calls)
-
-
-    # import difflib
-    # # from Levenshtein import distance as levenshtein_distance
-
-    # eng = glob.glob('*WhatsApp*.txt')[0]
-    # rus = glob.glob('*WhatsApp*.txt')[1]
-    # example = eng
-    # fst = 'Елизавета Выборнова'
-    # snd = 'Виктор Фадеев'
-
-    # # print(f"'{os.path.basename(eng)}' '{os.path.basename(rus)}' '{fst}' '{snd}' ")
-    # # print(os.path.splitext('t.t.t'))
-
-    # example = os.path.splitext(example)[0]
-    # example_fst = example[-len(fst):]
-    # example_snd = example[-len(snd):]
-    # print(f"'{example_fst}' '{example_snd}'")
-    # fst_ratio = difflib.SequenceMatcher(None, example_fst, fst).ratio()
-    # snd_ratio = difflib.SequenceMatcher(None, example_snd, snd).ratio()
-    # print(f'{fst_ratio} {snd_ratio}')
-    # print(difflib.SequenceMatcher(None, '2453', '123').ratio())
-
