@@ -125,11 +125,11 @@ def call_parser(pt: tuple[int, int], w: int, h: int, image: cv2.typing.MatLike,
     call_time, call_duration = image_to_time(call_image, lang)
 
     return pt[1], Call(
-        direction = CallDirection.IN if pt[0] < image_center else CallDirection.OUT,
-        type = call_type,
-        missed = call_duration is None,
-        timestamp = datetime.combine(date(1, 1, 1), call_time) if call_time else None,
-        duration = call_duration,
+        direction=CallDirection.IN if pt[0] < image_center else CallDirection.OUT,
+        type=call_type,
+        missed=call_duration is None,
+        timestamp=datetime.combine(date(1, 1, 1), call_time) if call_time else None,
+        duration=call_duration,
     )
 
 
@@ -177,17 +177,22 @@ def import_from_csv(path: str) -> list[Call]:
 
 def import_from_txt(path: str) -> list[Call]:
     result = []
+    authors = set()
+
     with open(path, encoding='utf-8') as file:
         for line in file:
             match = re.search(r'^(?P<timestamp>.*)\s+\-\s+(?P<author>.*)\: null$', line)
             if match:
-                result.append(Call(
-                    timestamp = parser.parse(match.group('timestamp')),
-                    direction = CallDirection.IN if match.group('author') in path \
-                        else CallDirection.OUT,
-                ))
+                result.append((parser.parse(match.group('timestamp')), match.group('author')))
+                authors.add(match.group('author'))
 
-    return result
+    filename = os.path.splitext(os.path.basename(path))[0]
+    authors = sorted(authors, reverse=True, key=lambda author: difflib.SequenceMatcher(
+        None, filename[-len(author):], author).ratio())
+    direction = {authors[0]: CallDirection.IN,
+                 authors[1]: CallDirection.OUT}
+
+    return list(map(lambda match: Call(timestamp=match[0], direction=direction[match[1]]), result))
 
 
 def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(minutes=1)) -> bool:
