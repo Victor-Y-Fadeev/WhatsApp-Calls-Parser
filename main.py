@@ -119,13 +119,13 @@ def image_to_time(image: cv2.typing.MatLike, lang: str) -> tuple[time, timedelta
 
 def call_parser(pt: tuple[int, int], w: int, h: int, image: cv2.typing.MatLike,
                 call_type: CallType, lang: str) -> tuple[int, Call]:
-    image_center = image.shape[1] / 2
+    left_quarter = image.shape[1] / 4
 
     call_image = crop_image(image, pt[0], pt[1], w, h)
     call_time, call_duration = image_to_time(call_image, lang)
 
     return pt[1], Call(
-        direction=CallDirection.IN if pt[0] < image_center else CallDirection.OUT,
+        direction=CallDirection.IN if pt[0] < left_quarter else CallDirection.OUT,
         type=call_type,
         missed=call_duration is None,
         timestamp=datetime.combine(date(1, 1, 1), call_time) if call_time else None,
@@ -200,11 +200,15 @@ def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(mi
     return delta <= epsilon or (timedelta(days=1) - delta) < epsilon
 
 
-def recognition_correction(calls: list[Call], nulls: list[Call]) -> list[Call]:
-    assert len(calls) <= len(nulls)
-    if len(calls) == 0:
-        return []
+def recognition_correction(call: Call, nulls: list[Call]) -> int:
+    filtred = list(filter(lambda item: item[1].direction == call.direction, enumerate(nulls)))
 
+    print(f'{call.direction} {call.timestamp} {nulls[0].direction} {nulls[0].timestamp}')
+    assert len(filtred) > 0
+    if len(filtred) == 1:
+        return filtred[0][0]
+
+    return 0
     if len(calls) == len(nulls):
         for i in range(len(calls)):
             calls[i].timestamp = nulls[i].timestamp
@@ -220,7 +224,7 @@ def recognition_correction(calls: list[Call], nulls: list[Call]) -> list[Call]:
     return calls
 
 
-def expand_calls_by_chat_quadratic(calls: list[Call], nulls: list[Call]) -> list[Call]:
+def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
     assert len(calls) <= len(nulls)
 
     comparator = lambda call_index, null_index: (calls[call_index].timestamp is None or
@@ -241,9 +245,9 @@ def expand_calls_by_chat_quadratic(calls: list[Call], nulls: list[Call]) -> list
                 break
 
         if old_lower_index == lower_index:
-            print(calls[i].timestamp)
-            for call in nulls[lower_index:upper_index]:
-                print(f'    {call.timestamp}')
+            j = lower_index + recognition_correction(calls[i], nulls[lower_index:upper_index])
+            calls[i].timestamp = nulls[j].timestamp
+            lower_index = j + 1
 
     return calls[::-1]
 
@@ -264,5 +268,5 @@ if __name__ == '__main__':
     chat_nulls = import_from_txt(chat)
     export_to_csv('chat.csv', chat_nulls)
 
-    calls = expand_calls_by_chat_quadratic(calls, chat_nulls)
+    calls = expand_calls_by_chat(calls, chat_nulls)
     export_to_csv('expanded_calls.csv', calls)
