@@ -2,6 +2,7 @@ import os
 import re
 import csv
 import glob
+import difflib
 
 from enum import StrEnum
 from pydantic import BaseModel
@@ -299,3 +300,26 @@ if __name__ == '__main__':
 
     calls = expand_calls_by_chat_quadratic(calls, chat_nulls)
     export_to_csv('expanded_calls.csv', calls)
+
+
+    # import difflib
+    # # from Levenshtein import distance as levenshtein_distance
+
+    # eng = glob.glob('*WhatsApp*.txt')[0]
+    # rus = glob.glob('*WhatsApp*.txt')[1]
+    # example = eng
+    # fst = 'Елизавета Выборнова'
+    # snd = 'Виктор Фадеев'
+
+    # # print(f"'{os.path.basename(eng)}' '{os.path.basename(rus)}' '{fst}' '{snd}' ")
+    # # print(os.path.splitext('t.t.t'))
+
+    # example = os.path.splitext(example)[0]
+    # example_fst = example[-len(fst):]
+    # example_snd = example[-len(snd):]
+    # print(f"'{example_fst}' '{example_snd}'")
+    # fst_ratio = difflib.SequenceMatcher(None, example_fst, fst).ratio()
+    # snd_ratio = difflib.SequenceMatcher(None, example_snd, snd).ratio()
+    # print(f'{fst_ratio} {snd_ratio}')
+    # print(difflib.SequenceMatcher(None, '2453', '123').ratio())
+
