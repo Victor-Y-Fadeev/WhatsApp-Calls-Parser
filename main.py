@@ -36,7 +36,6 @@ class CallDirection(StrEnum):
     OUT = 'outgoing'
 
 
-# @dataclass
 class Call(BaseModel):
     type: CallType = None
     direction: CallDirection = None
@@ -73,7 +72,6 @@ def crop_image(image: cv2.typing.MatLike, x: int, y: int, width: int, height: in
     y_template_lower_border = y + height
     x_template_right_border = x + width
     x_image_right_border = image.shape[1]
-    print(x_image_right_border)
 
     return image[y_template_center:y_template_lower_border,
                  x_template_right_border:x_image_right_border]
@@ -121,7 +119,6 @@ def image_to_time(image: cv2.typing.MatLike, lang: str) -> tuple[time, timedelta
 def call_parser(pt: tuple[int, int], w: int, h: int, image: cv2.typing.MatLike,
                 call_type: CallType, lang: str) -> tuple[int, Call]:
     image_center = image.shape[1] / 2
-    print(image_center)
 
     call_image = crop_image(image, pt[0], pt[1], w, h)
     call_time, call_duration = image_to_time(call_image, lang)
@@ -153,7 +150,7 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
 
 
 def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
-    if not previous[-1].timestamp:
+    while not previous[-1].timestamp:
         previous = previous[:-1]
 
     for i in range(1, 1 + min(len(previous), len(next)))[::-1]:
@@ -255,20 +252,19 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
     return calls[::-1]
 
 
-
 def expand_calls_by_chat_quadratic(calls: list[Call], nulls: list[Call]) -> list[Call]:
-    in_out_mode = {call.direction for call in calls} == {call.direction for call in nulls}
+    assert len(calls) <= len(nulls)
 
+    in_out_mode = {call.direction for call in calls} == {call.direction for call in nulls}
     comparator = lambda call_index, null_index: (calls[call_index].timestamp is None or
         compare_time(calls[call_index].timestamp, nulls[null_index].timestamp, timedelta(minutes=1))) and \
             (not in_out_mode or calls[call_index].direction == nulls[null_index].direction)
 
     calls, nulls = calls[::-1], nulls[::-1]
-
     lower_index = 0
+
     for i in range(len(calls)):
-        # for j in range(lower_index, len(nulls)):
-        for j in range(lower_index, min(len(nulls), lower_index + len(nulls) - len(calls) + i)):
+        for j in range(lower_index, min(lower_index + len(nulls[lower_index:]) - len(calls[i:]) + 1, len(nulls))):
             if comparator(i, j):
                 calls[i].timestamp = nulls[j].timestamp
                 lower_index = j + 1
@@ -281,15 +277,15 @@ if __name__ == '__main__':
     lang = 'rus'
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    call_lists = []
-    with Pool(min(os.cpu_count(), len(screenshots))) as pool:
-        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+    # call_lists = []
+    # with Pool(min(os.cpu_count(), len(screenshots))) as pool:
+    #     call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
 
-    calls = reduce(merge_call_lists, call_lists)
-    export_to_csv('calls.csv', calls)
+    # calls = reduce(merge_call_lists, call_lists)
+    # export_to_csv('calls.csv', calls)
     calls = import_from_csv('calls.csv')
 
-    chat = glob.glob('*WhatsApp*.txt')[1]
+    chat = glob.glob('*WhatsApp*.txt')[0]
     chat_nulls = import_from_txt(chat)
     export_to_csv('chat.csv', chat_nulls)
 
