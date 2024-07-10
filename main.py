@@ -2,6 +2,7 @@ import os
 import re
 import csv
 import glob
+import langid
 import difflib
 
 from enum import StrEnum
@@ -176,7 +177,18 @@ def import_from_csv(path: str) -> list[Call]:
                         csv.DictReader(csvfile, delimiter=';')))
 
 
-def import_from_txt(path: str) -> list[Call]:
+def detect_language(path: str, author: str) -> str:
+    filename = os.path.splitext(os.path.basename(path))[0]
+    generated = re.sub(r'\s+\S*$', '', filename[:-len(author)])
+    language, _ = langid.classify(generated)
+
+    return {
+        'en': 'eng',
+        'ru': 'rus'
+    }.get(language, 'eng')
+
+
+def import_from_txt(path: str) -> tuple[str, list[Call]]:
     result = []
     authors = set()
 
@@ -191,9 +203,10 @@ def import_from_txt(path: str) -> list[Call]:
     incoming = max(authors, key=lambda author: difflib.SequenceMatcher(
         None, filename[-len(author):], author).ratio())
 
-    return list(map(lambda match: Call(
+    return detect_language(path, incoming), list(map(lambda match: Call(
         timestamp=match[0],
-        direction=CallDirection.IN if match[1] == incoming else CallDirection.OUT), result))
+        direction=CallDirection.IN if match[1] == incoming else CallDirection.OUT
+    ), result))
 
 
 def compare_time(lhs: datetime, rhs: datetime, epsilon: timedelta = timedelta(minutes=1)) -> bool:
@@ -253,20 +266,19 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
 
 
 if __name__ == '__main__':
-    lang = 'rus'
+    chat = glob.glob('*WhatsApp*.txt')[0]
+    lang, chat_nulls = import_from_txt(chat)
+    # export_to_csv('chat.csv', chat_nulls)
+
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
 
-    # call_lists = []
-    # with Pool(min(os.cpu_count(), len(screenshots))) as pool:
-    #     call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+    call_lists = []
+    with Pool(min(os.cpu_count(), len(screenshots))) as pool:
+        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
 
-    # calls = reduce(merge_call_lists, call_lists)
+    calls = reduce(merge_call_lists, call_lists)
     # export_to_csv('calls.csv', calls)
-    calls = import_from_csv('calls.csv')
-
-    chat = glob.glob('*WhatsApp*.txt')[0]
-    chat_nulls = import_from_txt(chat)
-    export_to_csv('chat.csv', chat_nulls)
+    # calls = import_from_csv('calls.csv')
 
     calls = expand_calls_by_chat(calls, chat_nulls)
-    export_to_csv('expanded_calls.csv', calls)
+    export_to_csv('calls.csv', calls)
