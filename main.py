@@ -5,7 +5,6 @@ import glob
 import langid
 import difflib
 
-
 from enum import StrEnum
 from pydantic import BaseModel
 from collections import Counter
@@ -273,17 +272,11 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
 if __name__ == '__main__':
     chat = glob.glob('*WhatsApp*.txt')[0]
     lang, chat_nulls = import_from_txt(chat)
-    # export_to_csv('chat.csv', chat_nulls)
 
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
-
-    call_lists = []
     with Pool(min(os.cpu_count(), len(screenshots))) as pool:
-        call_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+        recognized_calls = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
+        normalized_calls = pool.map(partial(expand_calls_by_chat, nulls=chat_nulls), recognized_calls)
 
-    calls = reduce(merge_call_lists, call_lists)
-    # export_to_csv('calls.csv', calls)
-    # calls = import_from_csv('calls.csv')
-
-    calls = expand_calls_by_chat(calls, chat_nulls)
-    export_to_csv('calls.csv', calls)
+        calls = reduce(merge_call_lists, normalized_calls)
+        export_to_csv('calls.csv', calls)
