@@ -171,7 +171,7 @@ def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
 
 
 def export_to_csv(path: str, calls: list[Call]):
-    with open(path, 'w', newline='') as csvfile:
+    with open(path, 'w', encoding='utf-8', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=Call.model_fields.keys())
         writer.writeheader()
         for call in calls:
@@ -179,7 +179,7 @@ def export_to_csv(path: str, calls: list[Call]):
 
 
 def import_from_csv(path: str) -> list[Call]:
-    with open(path, newline='') as csvfile:
+    with open(path, encoding='utf-8', newline='') as csvfile:
         return list(map(lambda row: Call(**{k: v for k, v in row.items() if v}),
                         csv.DictReader(csvfile, delimiter=';')))
 
