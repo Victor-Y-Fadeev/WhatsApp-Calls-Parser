@@ -5,9 +5,11 @@ import glob
 import langid
 import difflib
 
+
 from enum import StrEnum
 from pydantic import BaseModel
 from collections import Counter
+from pycountry import languages
 from datetime import datetime, date, time, timedelta
 from dateutil import parser
 
@@ -137,12 +139,18 @@ def call_parser(pt: tuple[int, int], w: int, h: int, image: cv2.typing.MatLike,
 
 def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
     image = preprocess_image(screenshot_path)
+    width, height = image.shape[::-1]
 
-    audio_calls, w, h = template_matching(image, 'resources/audio.png')
-    video_calls, _, _ = template_matching(image, 'resources/video.png')
+    target_width = 720
+    resized_image = cv2.resize(image, (target_width, int(height * target_width / width)))
+
+    audio_calls, w, h = template_matching(resized_image, 'resources/{}/audio.png'.format(target_width))
+    video_calls, _, _ = template_matching(resized_image, 'resources/{}/video.png'.format(target_width))
+    if not audio_calls and not video_calls:
+        return []
 
     processes = min(os.cpu_count(), max(len(audio_calls), len(video_calls)))
-    custom_call_parser = partial(call_parser, w=w, h=h, image=image, lang=lang)
+    custom_call_parser = partial(call_parser, w=w, h=h, image=resized_image, lang=lang)
 
     with ThreadPool(processes) as pool:
         _, call_list = zip(*sorted(
@@ -158,9 +166,9 @@ def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
 
     for i in range(1, 1 + min(len(previous), len(next)))[::-1]:
         if previous[-i:] == next[:i]:
-            return previous + next[i:]
+            return [*previous, *next[i:]]
 
-    return previous + next
+    return [*previous, *next]
 
 
 def export_to_csv(path: str, calls: list[Call]):
@@ -180,12 +188,9 @@ def import_from_csv(path: str) -> list[Call]:
 def detect_language(path: str, author: str) -> str:
     filename = os.path.splitext(os.path.basename(path))[0]
     generated = re.sub(r'\s+\S*$', '', filename[:-len(author)])
-    language, _ = langid.classify(generated)
 
-    return {
-        'en': 'eng',
-        'ru': 'rus'
-    }.get(language, 'eng')
+    lang_code, _ = langid.classify(generated)
+    return languages.get(alpha_2=lang_code).alpha_3
 
 
 def import_from_txt(path: str) -> tuple[str, list[Call]]:

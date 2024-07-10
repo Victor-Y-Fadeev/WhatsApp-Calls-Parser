@@ -5,3 +5,4 @@ numpy
 pydantic
 python-dateutil
 langid
+pycountry
