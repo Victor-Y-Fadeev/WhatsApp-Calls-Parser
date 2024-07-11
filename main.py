@@ -156,13 +156,14 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
             pool.map(partial(custom_call_parser, call_type=CallType.AUDIO), audio_calls) +
             pool.map(partial(custom_call_parser, call_type=CallType.VIDEO), video_calls)
         ))
+
+        while not call_list[-1].timestamp:
+            call_list = call_list[:-1]
+
         return call_list
 
 
 def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
-    while not previous[-1].timestamp:
-        previous = previous[:-1]
-
     for i in range(1, 1 + min(len(previous), len(next)))[::-1]:
         if previous[-i:] == next[:i]:
             return [*previous, *next[i:]]
