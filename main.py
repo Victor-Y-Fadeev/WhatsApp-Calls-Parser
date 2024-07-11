@@ -165,7 +165,7 @@ def screenshot_to_calls(screenshot_path: str, lang: str) -> list[Call]:
 
 def merge_call_lists(previous: list[Call], next: list[Call]) -> list[Call]:
     for i in range(1, 1 + min(len(previous), len(next)))[::-1]:
-        if previous[-i:] == next[:i]:
+        if list(previous[-i:]) == list(next[:i]):
             return [*previous, *next[i:]]
 
     return [*previous, *next]
@@ -273,11 +273,15 @@ def expand_calls_by_chat(calls: list[Call], nulls: list[Call]) -> list[Call]:
 if __name__ == '__main__':
     chat = glob.glob('*WhatsApp*.txt')[0]
     lang, chat_nulls = import_from_txt(chat)
+    # export_to_csv('chat.csv', chat_nulls)
 
     screenshots = sorted(glob.glob('Screenshot_*.jpg'))
     with Pool(min(os.cpu_count(), len(screenshots))) as pool:
-        recognized_calls = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
-        normalized_calls = pool.map(partial(expand_calls_by_chat, nulls=chat_nulls), recognized_calls)
+        calls_lists = pool.map(partial(screenshot_to_calls, lang=lang), screenshots)
 
-        calls = reduce(merge_call_lists, normalized_calls)
-        export_to_csv('calls.csv', calls)
+    calls = reduce(merge_call_lists, calls_lists)
+    # export_to_csv('calls.csv', calls)
+    # calls = import_from_csv('calls.csv')
+
+    calls = expand_calls_by_chat(calls, chat_nulls)
+    export_to_csv('calls.csv', calls)
