@@ -201,7 +201,8 @@ def import_from_txt(path: str) -> tuple[str, list[Call]]:
         for line in file:
             match = re.search(r'^(?P<timestamp>.*)\s+\-\s+(?P<author>.*)\: null$', line)
             if match:
-                result.append((parser.parse(match.group('timestamp')), match.group('author')))
+                timestamp = match.group('timestamp')
+                result.append((parser.parse(timestamp, dayfirst='/' not in timestamp), match.group('author')))
                 authors.add(match.group('author'))
 
     filename = os.path.splitext(os.path.basename(path))[0]

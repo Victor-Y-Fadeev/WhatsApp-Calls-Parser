@@ -54,7 +54,7 @@ def div_to_call(item: tuple[str, str]) -> Call:
 
 	return Call(
 		type=CallType(match.group('type')),
-		timestamp=parser.parse(item[0], tzinfos={'MSK': 3 * 3600}),
+		timestamp=parser.parse(item[0], dayfirst='/' not in item[0], tzinfos={'MSK': 3 * 3600}),
 		duration=timedelta(seconds=int(duration)) if duration else None
 	)
 
